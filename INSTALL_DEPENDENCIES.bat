@@ -35,7 +35,7 @@ echo.
 echo ================================================
 echo    STEP 2: Installing basic packages
 echo ================================================
-pip install speech-recognition
+pip install SpeechRecognition
 pip install psutil 
 pip install numpy
 pip install requests

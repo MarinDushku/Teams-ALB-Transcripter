@@ -4,9 +4,4 @@ SpeechRecognition
 psutil
 pywin32; sys_platform == "win32"
 numpy
-threading
-queue
-datetime
-tkinter
 requests
-wave
