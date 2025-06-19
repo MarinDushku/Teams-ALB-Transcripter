@@ -42,16 +42,49 @@ if errorlevel 1 (
 )
 
 REM Install/update requirements
-echo Checking dependencies...
-pip install -r requirements.txt --quiet
+echo.
+echo ================================================
+echo    INSTALLING DEPENDENCIES
+echo ================================================
+echo.
+echo Installing Python packages...
+pip install --upgrade pip
+echo.
+echo Installing basic requirements...
+pip install speech_recognition psutil numpy threading queue datetime tkinter requests wave
+echo.
+echo Installing audio packages (this may take a moment)...
+pip install pipwin
+pipwin install pyaudio
 if errorlevel 1 (
-    echo WARNING: Some dependencies may not have installed correctly
-    echo This might affect functionality
     echo.
+    echo Trying alternative pyaudio installation...
+    pip install pyaudio
+    if errorlevel 1 (
+        echo.
+        echo PyAudio installation failed. Trying precompiled wheel...
+        pip install https://files.pythonhosted.org/packages/37/9e/4f24dfa8fb6d8a7d80e5a5c3e8d8d1d3d9f1c3b9f6c3b6c8a4f8c9e8f0a/PyAudio-0.2.11-cp39-cp39-win_amd64.whl
+        if errorlevel 1 (
+            echo.
+            echo !! PYAUDIO INSTALLATION FAILED !!
+            echo This is required for audio capture.
+            echo.
+            echo Please try:
+            echo   1. Install Visual Studio Build Tools
+            echo   2. Or download PyAudio wheel manually
+            echo.
+        )
+    )
 )
-
-REM Clear screen and show startup info
-cls
+echo.
+echo Trying to install remaining requirements...
+pip install -r requirements.txt
+echo.
+echo ================================================
+echo    DEPENDENCY INSTALLATION COMPLETE
+echo ================================================
+echo.
+pause
 echo.
 echo ================================================
 echo    Albanian Teams Transcriber - STARTING
