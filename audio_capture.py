@@ -1,8 +1,9 @@
-import pyaudio
 try:
     import pyaudiowpatch as pyaudio
+    WASAPI_AVAILABLE = True
 except ImportError:
     import pyaudio
+    WASAPI_AVAILABLE = False
 import threading
 import queue
 import wave
@@ -11,18 +12,28 @@ import numpy as np
 class TeamsAudioCapture:
     def __init__(self):
         self.p = pyaudio.PyAudio()
-        self.device = self.find_system_audio_device()
+        self.device = self.find_wasapi_loopback() if WASAPI_AVAILABLE else self.find_system_audio_device()
         self.audio_queue = queue.Queue()
         self.is_recording = False
         self.stream = None
         
+    def find_wasapi_loopback(self):
+        """Find WASAPI loopback device for capturing speaker output"""
+        for i in range(self.p.get_device_count()):
+            dev = self.p.get_device_info_by_index(i)
+            if ("WASAPI" in dev['name'] and 
+                dev['maxInputChannels'] > 0 and 
+                dev['hostApi'] == 3):  # WASAPI host API
+                print(f"Found WASAPI loopback device: {dev['name']}")
+                return dev
+        return None
+    
     def find_system_audio_device(self):
-        """Find the system audio output device (speakers/headphones)"""
+        """Find the system audio output device (speakers/headphones) - fallback"""
         for i in range(self.p.get_device_count()):
             device_info = self.p.get_device_info_by_index(i)
-            # Look for WASAPI loopback device or default output
-            if ("WASAPI" in device_info["name"] and "loopback" in device_info["name"].lower()) or \
-               (device_info["maxInputChannels"] > 0 and device_info["maxOutputChannels"] > 0):
+            # Look for devices with input capability
+            if device_info["maxInputChannels"] > 0:
                 return device_info
         
         # Fallback to default input device
@@ -33,15 +44,26 @@ class TeamsAudioCapture:
         if self.is_recording:
             return
             
+        if not self.device:
+            print("No suitable audio device found!")
+            return
+            
         try:
-            self.stream = self.p.open(
-                format=pyaudio.paInt16,
-                channels=min(2, self.device['maxInputChannels']),
-                rate=16000,  # Standard for speech recognition
-                input=True,
-                input_device_index=self.device['index'],
-                frames_per_buffer=1024
-            )
+            # Configure stream parameters based on device capabilities
+            stream_kwargs = {
+                'format': pyaudio.paInt16,
+                'channels': min(2, self.device['maxInputChannels']),
+                'rate': 16000,  # Standard for speech recognition
+                'input': True,
+                'input_device_index': self.device['index'],
+                'frames_per_buffer': 1024
+            }
+            
+            # Add loopback parameter if using WASAPI
+            if WASAPI_AVAILABLE and "WASAPI" in self.device['name']:
+                stream_kwargs['as_loopback'] = True
+                
+            self.stream = self.p.open(**stream_kwargs)
             
             self.is_recording = True
             self.capture_thread = threading.Thread(target=self._capture_loop)

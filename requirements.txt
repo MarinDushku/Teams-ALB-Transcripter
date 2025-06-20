@@ -1,6 +1,9 @@
-pyaudio
 pyaudiowpatch
-SpeechRecognition
+openai-whisper
+pyannote.audio
+speechbrain
+torch
+torchaudio
 psutil
 pywin32; sys_platform == "win32"
 numpy

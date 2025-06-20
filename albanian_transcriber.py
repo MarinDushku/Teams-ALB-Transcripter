@@ -1,73 +1,60 @@
-import speech_recognition as sr
+import whisper
 import queue
 import threading
 import time
 import wave
 import io
 import numpy as np
+import tempfile
+import os
 from datetime import datetime
 
-class AlbanianRealTimeTranscriber:
-    def __init__(self):
-        self.recognizer = sr.Recognizer()
-        self.microphone = sr.Microphone()
-        self.albanian_model = None
+class WhisperAlbanianTranscriber:
+    def __init__(self, model_size="base"):
+        self.model = whisper.load_model(model_size)
         self.audio_buffer = []
         self.buffer_lock = threading.Lock()
         self.transcription_callback = None
         
-        # Configure recognizer for better performance
-        self.recognizer.energy_threshold = 300
-        self.recognizer.dynamic_energy_threshold = True
-        self.recognizer.pause_threshold = 0.8
-        self.recognizer.phrase_threshold = 0.3
-        
-        # Initialize Albanian ASR (placeholder for actual implementation)
-        self._init_albanian_asr()
+        print(f"Whisper {model_size} model loaded for Albanian transcription")
     
     def _init_albanian_asr(self):
-        """Initialize Albanian ASR model"""
-        # Placeholder for Albanian-ASR integration
-        # In actual implementation, this would load the Albanian-ASR model
-        # from https://github.com/florijanqosja/Albanian-ASR
-        print("Albanian ASR model initialized (placeholder)")
+        """Legacy method - now using Whisper"""
+        pass
         
     def set_transcription_callback(self, callback):
         """Set callback function for real-time transcription results"""
         self.transcription_callback = callback
     
     def transcribe_albanian(self, audio_data):
-        """Transcribe audio data to Albanian text"""
+        """Transcribe audio data to Albanian text using Whisper"""
         try:
-            # Convert audio data to format suitable for recognition
-            audio_file = io.BytesIO(audio_data)
+            # Save audio data to temporary file for Whisper
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_file.write(audio_data)
+                temp_path = temp_file.name
             
-            # Use speech_recognition with fallback to Google's API
-            # In production, this would use the Albanian-ASR model
-            with sr.AudioFile(audio_file) as source:
-                audio = self.recognizer.record(source)
+            # Transcribe with Whisper
+            result = self.model.transcribe(
+                temp_path,
+                language="sq",  # Albanian language code
+                word_timestamps=True,
+                verbose=False
+            )
             
-            # Placeholder transcription (in real implementation, use Albanian-ASR)
-            # For now, using Google's API as fallback
-            try:
-                text = self.recognizer.recognize_google(audio, language='sq-AL')  # Albanian language code
-                return text
-            except sr.UnknownValueError:
-                return ""
-            except sr.RequestError:
-                # Fallback to offline Albanian processing
-                return self._offline_albanian_transcribe(audio_data)
+            # Clean up temp file
+            os.unlink(temp_path)
+            
+            return result["text"].strip(), result.get("segments", [])
                 
         except Exception as e:
-            print(f"Transcription error: {e}")
-            return ""
+            print(f"Whisper transcription error: {e}")
+            return "", []
     
-    def _offline_albanian_transcribe(self, audio_data):
-        """Offline Albanian transcription using Albanian-ASR model"""
-        # Placeholder for actual Albanian-ASR implementation
-        # This would integrate with the Albanian-ASR GitHub project
-        # For now, return empty string
-        return ""
+    def transcribe(self, audio_chunk):
+        """Main transcription method"""
+        text, segments = self.transcribe_albanian(audio_chunk)
+        return text, segments
     
     def process_audio_stream(self, audio_queue):
         """Process continuous audio stream for real-time transcription"""
@@ -85,7 +72,7 @@ class AlbanianRealTimeTranscriber:
                         
                         # Create WAV format for recognition
                         wav_data = self._create_wav_data(combined_audio)
-                        text = self.transcribe_albanian(wav_data)
+                        text, segments = self.transcribe_albanian(wav_data)
                         
                         if text and self.transcription_callback:
                             timestamp = datetime.now().strftime("%H:%M:%S")
