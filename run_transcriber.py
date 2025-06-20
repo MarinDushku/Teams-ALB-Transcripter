@@ -80,7 +80,17 @@ class TranscriberLauncher:
         version_frame = tk.LabelFrame(content_frame, text="Version Selection", font=("Arial", 10, "bold"))
         version_frame.pack(fill=tk.X, pady=(0, 10))
         
-        self.version_var = tk.StringVar(value="premium")
+        self.version_var = tk.StringVar(value="stunning")
+        
+        stunning_radio = tk.Radiobutton(
+            version_frame,
+            text="✨ Ultra Premium - Stunning visuals + Animations + AI beauty",
+            variable=self.version_var,
+            value="stunning",
+            font=("Arial", 9, "bold"),
+            fg='#FF6B9D'
+        )
+        stunning_radio.pack(anchor=tk.W, padx=10, pady=2)
         
         premium_radio = tk.Radiobutton(
             version_frame,
@@ -225,7 +235,24 @@ class TranscriberLauncher:
             self.root.withdraw()
             
             # Choose which version to launch
-            if version == "premium":
+            if version == "stunning":
+                if os.path.exists('ultra_premium_main.py'):
+                    print("✨ Launching Ultra Premium Stunning Albanian Teams Transcriber...")
+                    subprocess.Popen([sys.executable, 'ultra_premium_main.py', mode])
+                else:
+                    messagebox.showwarning("Ultra Premium Version", 
+                                         "Ultra Premium version not found. Launching premium version instead.")
+                    if os.path.exists('premium_main.py'):
+                        subprocess.Popen([sys.executable, 'premium_main.py', mode])
+                    elif os.path.exists('enhanced_main.py'):
+                        subprocess.Popen([sys.executable, 'enhanced_main.py', mode])
+                    elif os.path.exists('main.py'):
+                        subprocess.Popen([sys.executable, 'main.py', mode])
+                    else:
+                        messagebox.showerror("Error", "No transcriber files found")
+                        self.root.deiconify()
+                        return
+            elif version == "premium":
                 if os.path.exists('premium_main.py'):
                     print("🌟 Launching Premium Albanian Teams Transcriber...")
                     subprocess.Popen([sys.executable, 'premium_main.py', mode])
