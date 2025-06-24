@@ -14,11 +14,21 @@ if %errorlevel% neq 0 (
 )
 
 echo [1/4] Installing Python dependencies...
-pip install -r requirements.txt
+echo Installing setuptools first...
+pip install "setuptools<70.0.0"
+echo Installing core dependencies...
+pip install -r requirements-minimal.txt
 if %errorlevel% neq 0 (
-    echo ERROR: Failed to install dependencies
-    pause
-    exit /b 1
+    echo.
+    echo WARNING: Some dependencies failed to install
+    echo Trying with minimal requirements...
+    pip install pyaudiowpatch torch numpy scipy requests psutil python-docx
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to install basic dependencies
+        echo Please try manually: pip install pyaudiowpatch torch numpy
+        pause
+        exit /b 1
+    )
 )
 
 echo.

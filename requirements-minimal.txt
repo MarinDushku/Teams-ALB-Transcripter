@@ -1,5 +1,5 @@
+# Minimal requirements for basic functionality
 pyaudiowpatch
-openai-whisper==20231117
 torch>=2.0.0
 torchaudio>=2.0.0
 numpy<2.0.0
