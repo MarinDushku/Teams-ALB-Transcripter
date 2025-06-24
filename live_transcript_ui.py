@@ -1411,7 +1411,7 @@ class LiveTranscriptUI:
     
     # Essential UI methods for functionality
     def toggle_theme(self):
-        \"\"\"Toggle between dark and light themes with smooth transition\"\"\"
+        """Toggle between dark and light themes with smooth transition"""
         self.current_theme = 'light' if self.current_theme == 'dark' else 'dark'
         self.theme = self.themes[self.current_theme]
         
