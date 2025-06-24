@@ -2008,6 +2008,22 @@ More settings coming in future updates...
             for entry in self.transcript_data:
                 f.write(f"**[{entry['timestamp']}] {entry['speaker']}:** {entry['text']}\n\n")
     
+    def update_session_stats(self, word_count=0, confidence=0):
+        """Update session statistics display"""
+        try:
+            # Update word count if stats panel exists
+            if hasattr(self, 'word_count_var'):
+                current_words = getattr(self, '_total_words', 0)
+                self._total_words = current_words + word_count
+                self.word_count_var.set(str(self._total_words))
+            
+            # Update confidence if available
+            if hasattr(self, 'confidence_var') and confidence > 0:
+                self.confidence_var.set(f"{confidence:.0f}%")
+                
+        except Exception as e:
+            print(f"⚠ Stats update error: {e}")
+    
     def run(self):
         """Start the stunning UI"""
         self.window.mainloop()

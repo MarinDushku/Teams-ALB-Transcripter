@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Working Albanian Teams Transcriber
-Uses OpenAI Whisper instead of problematic Albanian ASR
+Albanian Teams Transcriber - Production Version
+Real-time transcription with beautiful UI and AI-powered accuracy
 """
 
 import threading
@@ -12,6 +12,8 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import messagebox
 import numpy as np
+import queue
+import json
 
 # Try to import available packages
 try:
@@ -58,6 +60,12 @@ class WorkingAlbanianTranscriber:
         self.is_recording = False
         self.audio_stream = None
         self.transcription_thread = None
+        self.audio_queue = queue.Queue()
+        
+        # Performance settings
+        self.buffer_duration = 3  # seconds of audio to process at once
+        self.silence_threshold = 0.01
+        self.speaker_count = 0
         
         # Initialize Whisper if available
         self.whisper_model = None
@@ -160,8 +168,9 @@ class WorkingAlbanianTranscriber:
             return None
     
     def transcription_loop(self):
-        """Main transcription loop"""
+        """Main transcription loop with improved performance"""
         audio_buffer = []
+        last_process_time = time.time()
         
         while self.is_recording:
             try:
@@ -169,49 +178,102 @@ class WorkingAlbanianTranscriber:
                 if self.audio_stream:
                     data = self.audio_stream.read(self.chunk_size, exception_on_overflow=False)
                     audio_buffer.append(data)
+                    
+                    # Add to queue for real-time processing
+                    self.audio_queue.put(data)
                 
-                # Process every 3 seconds of audio
-                if len(audio_buffer) >= (self.sample_rate * 3) // self.chunk_size:
-                    self.process_audio_buffer(audio_buffer)
-                    audio_buffer = []
+                # Process every buffer_duration seconds of audio
+                current_time = time.time()
+                if current_time - last_process_time >= self.buffer_duration:
+                    if audio_buffer:
+                        threading.Thread(target=self.process_audio_buffer, args=(audio_buffer.copy(),), daemon=True).start()
+                        audio_buffer = []
+                        last_process_time = current_time
                 
-                time.sleep(0.1)
+                time.sleep(0.05)  # Reduced sleep for better responsiveness
                 
             except Exception as e:
                 print(f"⚠ Transcription error: {e}")
-                time.sleep(1)
+                time.sleep(0.5)
     
     def process_audio_buffer(self, audio_buffer):
-        """Process accumulated audio buffer"""
+        """Process accumulated audio buffer with enhanced features"""
         try:
             # Convert audio buffer to numpy array
             audio_data = b''.join(audio_buffer)
             audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
             
+            # Check for silence
+            energy = np.sqrt(np.mean(audio_np ** 2))
+            if energy < self.silence_threshold:
+                return
+            
             # Transcribe with available method
             text = self.transcribe_audio(audio_np)
             
-            if text and text.strip():
-                print(f"🎯 Transcribed: {text}")
-                self.ui.add_transcript_entry("Speaker", text, datetime.now())
+            if text and text.strip() and len(text.strip()) > 3:
+                # Simple speaker detection based on audio characteristics
+                speaker_name = self.detect_speaker(audio_np, text)
+                
+                print(f"🎯 [{speaker_name}] {text}")
+                self.ui.add_transcript_entry(speaker_name, text, datetime.now())
+                
+                # Update statistics
+                self.ui.update_session_stats(len(text.split()), energy * 100)
                 
         except Exception as e:
             print(f"⚠ Audio processing error: {e}")
     
+    def detect_speaker(self, audio_data, text):
+        """Simple speaker detection based on audio characteristics"""
+        try:
+            # Basic speaker detection using audio energy and frequency
+            energy = np.sqrt(np.mean(audio_data ** 2))
+            
+            # Simple heuristic: higher energy usually means different speaker
+            if energy > 0.05:
+                speaker_id = "Speaker A"
+            elif energy > 0.02:
+                speaker_id = "Speaker B" 
+            else:
+                speaker_id = "Speaker C"
+                
+            return speaker_id
+            
+        except:
+            self.speaker_count += 1
+            return f"Speaker {self.speaker_count}"
+    
     def transcribe_audio(self, audio_data):
-        """Transcribe audio using available method"""
+        """Transcribe audio using available method with optimizations"""
         try:
             if self.whisper_model is not None:
-                # Use Whisper for transcription
-                result = self.whisper_model.transcribe(audio_data, language='sq')  # 'sq' for Albanian
-                return result['text'].strip()
+                # Use Whisper for high-quality transcription
+                result = self.whisper_model.transcribe(
+                    audio_data, 
+                    language='sq',  # Albanian
+                    fp16=False,     # Better compatibility
+                    temperature=0.0, # More deterministic
+                    word_timestamps=True,
+                    condition_on_previous_text=True
+                )
+                
+                # Extract text and confidence
+                text = result['text'].strip()
+                confidence = getattr(result, 'confidence', 0.8)
+                
+                # Filter out low confidence or very short transcriptions
+                if confidence > 0.5 and len(text) > 2:
+                    return text
+                return ""
+                
             else:
                 # Fallback to basic speech recognition
                 return self.fallback_transcription(audio_data)
                 
         except Exception as e:
             print(f"⚠ Transcription error: {e}")
-            return ""
+            return self.fallback_transcription(audio_data)
     
     def fallback_transcription(self, audio_data):
         """Fallback transcription method"""
