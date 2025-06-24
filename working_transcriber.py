@@ -39,6 +39,7 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 from live_transcript_ui import LiveTranscriptUI
+from teams_participant_monitor import TeamsParticipantMonitor
 
 class WorkingAlbanianTranscriber:
     def __init__(self):
@@ -46,6 +47,10 @@ class WorkingAlbanianTranscriber:
         
         # Initialize UI first
         self.ui = LiveTranscriptUI()
+        
+        # Initialize participant monitor
+        self.participant_monitor = TeamsParticipantMonitor()
+        self.participant_monitor.add_participant_callback(self.on_participant_event)
         
         # Check capabilities
         self.check_capabilities()
@@ -67,6 +72,10 @@ class WorkingAlbanianTranscriber:
         self.silence_threshold = 0.01
         self.speaker_count = 0
         
+        # Participant tracking
+        self.current_participants = {}
+        self.speaker_participant_map = {}  # Map detected speakers to real participants
+        
         # Initialize Whisper if available
         self.whisper_model = None
         if WHISPER_AVAILABLE:
@@ -79,6 +88,67 @@ class WorkingAlbanianTranscriber:
         
         # Connect UI callbacks
         self.setup_ui_callbacks()
+    
+    def on_participant_event(self, event_type, participant_name, details):
+        """Handle participant join/leave/speaking events"""
+        timestamp = details.get('timestamp', datetime.now()) if details else datetime.now()
+        
+        if event_type == 'join':
+            self.current_participants[participant_name] = {
+                'joined_at': timestamp,
+                'status': 'active',
+                'last_speaking': None
+            }
+            message = f"👤 {participant_name} joined the meeting"
+            print(f"✅ {message}")
+            self.ui.add_transcript_entry("System", message, timestamp)
+            
+        elif event_type == 'leave':
+            if participant_name in self.current_participants:
+                self.current_participants[participant_name]['status'] = 'left'
+            message = f"👤 {participant_name} left the meeting"
+            print(f"❌ {message}")
+            self.ui.add_transcript_entry("System", message, timestamp)
+            
+        elif event_type == 'speaking':
+            # Update last speaking time for speaker detection
+            for participant in self.current_participants:
+                if self.current_participants[participant]['status'] == 'active':
+                    self.current_participants[participant]['last_speaking'] = timestamp
+    
+    def get_likely_speaker_name(self, speaker_id):
+        """Map detected speaker to actual participant name"""
+        try:
+            # If we have participant info, try to match
+            active_participants = [name for name, info in self.current_participants.items() 
+                                 if info['status'] == 'active']
+            
+            if not active_participants:
+                return speaker_id
+            
+            # Simple mapping based on speaker ID
+            if speaker_id in self.speaker_participant_map:
+                return self.speaker_participant_map[speaker_id]
+            
+            # Try to assign speakers to participants
+            if len(active_participants) == 1:
+                # Only one participant, likely them
+                participant_name = active_participants[0]
+                self.speaker_participant_map[speaker_id] = participant_name
+                return participant_name
+            
+            elif len(active_participants) >= 2:
+                # Multiple participants - assign based on speaker pattern
+                speaker_index = ord(speaker_id[-1]) % len(active_participants) if speaker_id else 0
+                participant_name = active_participants[speaker_index]
+                self.speaker_participant_map[speaker_id] = participant_name
+                return participant_name
+            
+            return speaker_id
+            
+        except Exception as e:
+            print(f"⚠ Speaker mapping error: {e}")
+            return speaker_id
         
     def check_capabilities(self):
         """Check what features are available"""
@@ -135,6 +205,13 @@ class WorkingAlbanianTranscriber:
             # Start transcription thread
             self.transcription_thread = threading.Thread(target=self.transcription_loop, daemon=True)
             self.transcription_thread.start()
+            
+            # Start participant monitoring
+            if self.participant_monitor.start_monitoring():
+                print("🔍 Participant monitoring started")
+                self.ui.add_transcript_entry("System", "🔍 Monitoring Teams participants...", datetime.now())
+            else:
+                print("⚠ Participant monitoring failed - continuing with audio only")
             
             print("🎤 Recording started...")
             self.ui.add_transcript_entry("System", "🎤 Recording started - speak now!", datetime.now())
@@ -213,7 +290,10 @@ class WorkingAlbanianTranscriber:
             
             if text and text.strip() and len(text.strip()) > 3:
                 # Simple speaker detection based on audio characteristics
-                speaker_name = self.detect_speaker(audio_np, text)
+                speaker_id = self.detect_speaker(audio_np, text)
+                
+                # Map to actual participant name if available
+                speaker_name = self.get_likely_speaker_name(speaker_id)
                 
                 print(f"🎯 [{speaker_name}] {text}")
                 self.ui.add_transcript_entry(speaker_name, text, datetime.now())
@@ -297,6 +377,9 @@ class WorkingAlbanianTranscriber:
         
         if hasattr(self, 'audio'):
             self.audio.terminate()
+        
+        # Stop participant monitoring
+        self.participant_monitor.stop_monitoring()
         
         print("⏹️ Recording stopped")
         self.ui.add_transcript_entry("System", "⏹️ Recording stopped", datetime.now())

@@ -11,13 +11,28 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [1/2] Installing Whisper for Albanian transcription...
-pip install openai-whisper --user --quiet
+echo [1/3] Installing AI and participant monitoring dependencies...
+pip install openai-whisper pygetwindow pyautogui opencv-python pillow pytesseract --user --quiet
 if %errorlevel% neq 0 (
-    echo WARNING: Whisper installation failed, using fallback transcription
+    echo WARNING: Some dependencies failed, continuing...
 )
 
-echo [2/2] Verifying setup...
+echo [2/3] Installing Tesseract OCR for participant detection...
+echo.
+echo IMPORTANT: Download Tesseract OCR from:
+echo https://github.com/UB-Mannheim/tesseract/wiki
+echo.
+echo Choose "tesseract-ocr-w64-setup-v5.x.x.exe" and install it
+echo.
+set /p tesseract_installed="Have you installed Tesseract OCR? (y/n): "
+if /i not "%tesseract_installed%"=="y" (
+    echo.
+    echo Please install Tesseract OCR for participant name detection
+    echo The transcriber will work without it, but won't detect participant names
+)
+
+echo.
+echo [3/3] Verifying setup...
 python -c "
 import sys
 print('Checking packages...')
@@ -27,7 +42,9 @@ packages = {
     'pyaudiowpatch': 'Audio capture',
     'torch': 'AI processing', 
     'numpy': 'Data processing',
-    'tkinter': 'User interface'
+    'tkinter': 'User interface',
+    'pygetwindow': 'Window detection',
+    'cv2': 'Image processing'
 }
 
 working = 0
@@ -66,6 +83,9 @@ echo Your transcriber is ready to use with:
 echo ✓ Beautiful modern UI
 echo ✓ Real-time audio capture  
 echo ✓ AI-powered transcription
+echo ✓ Automatic participant detection
+echo ✓ Speaker identification
+echo ✓ Join/leave notifications
 echo ✓ Export capabilities
 echo.
 echo AUDIO SETUP (Important):

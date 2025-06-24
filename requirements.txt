@@ -9,6 +9,13 @@ scipy>=1.9.0
 requests>=2.28.0
 psutil>=5.9.0
 
+# Participant Monitoring
+pygetwindow>=0.0.9
+pyautogui>=0.9.54
+opencv-python>=4.8.0
+pillow>=10.0.0
+pytesseract>=0.3.10
+
 # Export & UI
 python-docx>=0.8.11
 
